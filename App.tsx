@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { scanDirectory, formatBytes, copyFileToDirectory, deleteFile } from './services/fs-helpers';
 import { FileItem, SwipeAction } from './types';
 import { MediaViewer } from './components/MediaViewer';
-import { Folder, Trash2, Save, ArrowRight, CheckCircle2, AlertTriangle, AlertCircle, Download, MonitorDown, StopCircle, Play, Layers, Search, FolderTree, Copy, X, RotateCcw, Upload, FileJson, RefreshCw, Info } from 'lucide-react';
+import { Folder, Trash2, Save, ArrowRight, CheckCircle2, AlertTriangle, AlertCircle, Download, MonitorDown, StopCircle, Play, Search, FolderTree, Copy, X, RotateCcw, Upload, FileJson, RefreshCw, Info } from 'lucide-react';
 
 enum AppState {
   IDLE = 'IDLE',
@@ -48,7 +48,7 @@ const WindowFrame: React.FC<{
   );
 };
 
-const App: React.FC = () => {
+export const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [sourceHandle, setSourceHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [destHandle, setDestHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -761,5 +761,3 @@ const App: React.FC = () => {
     </WindowFrame>
   );
 };
-
-export default App;
