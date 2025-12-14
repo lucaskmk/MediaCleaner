@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Media Cleaner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+      /* Hide scrollbar for clean UI */
+      ::-webkit-scrollbar {
+        width: 0px;
+        background: transparent;
+      }
+      body {
+        background-color: #0f172a; /* Slate 900 */
+        color: #f8fafc;
+        /* Disable text selection for app-like feel */
+        user-select: none;
+        -webkit-user-select: none;
+        cursor: default;
+      }
+      /* Draggable region for future electron implementation or visual cue */
+      .draggable-region {
+        -webkit-app-region: drag; 
+      }
+    </style>
+    <!-- Dynamic PWA Manifest for standalone app experience -->
+    <link rel="manifest" href='data:application/manifest+json,{
+      "name": "Media Cleaner",
+      "short_name": "Cleaner",
+      "start_url": "/",
+      "display": "standalone",
+      "background_color": "#0f172a",
+      "theme_color": "#0f172a",
+      "icons": [
+        {
+          "src": "https://cdn-icons-png.flaticon.com/512/3767/3767084.png",
+          "sizes": "192x192",
+          "type": "image/png"
+        }
+      ]
+    }' />
+  <script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@^19.2.3",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
+    "@google/genai": "https://esm.sh/@google/genai@^1.33.0"
+  }
+}
+</script>
+<link rel="stylesheet" href="/index.css">
+</head>
+  <body>
+    <div id="root"></div>
+  <script type="module" src="/index.tsx"></script>
+</body>
+</html>
