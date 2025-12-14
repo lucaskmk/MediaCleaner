@@ -1,17 +1,14 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
-# Run and deploy your AI Studio app
+The app uses the File System Access API: reads, copies, and deletions are performed locally and only with the user’s explicit permission.
+
+The "Save progress" button generates a JSON file and triggers a local download — it is not sent to any server.
+
+There are no analytics, backend services, or endpoints that receive files.
 
 This contains everything you need to run your app locally.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1t24yZRdzB4swJDSHs4hibgD7xZa42azS
-
 ## Run Locally
-
 **Prerequisites:**  Node.js
-
 
 1. Install dependencies:
    `npm install`
