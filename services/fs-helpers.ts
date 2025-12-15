@@ -115,6 +115,22 @@ export async function copyFileToDirectory(
 ) {
   const file = await fileHandle.getFile();
   const newFileHandle = await destDirHandle.getFileHandle(file.name, { create: true });
+
+  // Prefer streaming copy when available to avoid buffering entire file in memory
+  try {
+    const readable = file.stream?.();
+    if (readable && typeof readable.pipeTo === 'function') {
+      const writable = await newFileHandle.createWritable();
+      // `createWritable()` returns a writable stream-like object; pipe the readable directly
+      await (readable as ReadableStream).pipeTo(writable as unknown as WritableStream);
+      return;
+    }
+  } catch (err) {
+    // Fall back to simple write below
+    console.warn('Streaming copy failed, falling back to buffered copy', err);
+  }
+
+  // Fallback: read entire file and write in one go
   const writable = await newFileHandle.createWritable();
   await writable.write(file);
   await writable.close();

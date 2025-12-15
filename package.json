@@ -1,26 +1,47 @@
 {
   "name": "media-cleaner",
-  "version": "1.8.0",
-  "description": "Organizador de midia local",
+  "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
   "dependencies": {
-    "lucide-react": "^0.344.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1"
+    "@google/genai": "^1.33.0",
+    "lucide-react": "^0.561.0",
+    "react": "^19.2.3",
+    "react-dom": "^19.2.3"
   },
   "devDependencies": {
-    "@types/react": "^18.3.3",
-    "@types/react-dom": "^18.3.0",
-    "@vitejs/plugin-react": "^4.3.1",
-    "autoprefixer": "^10.4.19",
-    "postcss": "^8.4.38",
-    "tailwindcss": "^3.4.4",
-    "typescript": "^5.5.3",
-    "vite": "^5.3.1"
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "autoprefixer": "^10.4.13",
+    "express": "^4.22.1",
+    "postcss": "^8.4.21",
+    "tailwindcss": "^3.4.7",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "electron": "^39.2.7",
+    "electron-builder": "^24.6.0"
+  },
+  "scripts": {
+    "dev": "electron .",
+    "vite:dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "package": "npm run clean && vite build && electron-builder",
+    "dist:win": "npm run package -- --win --x64",
+    "clean": "if exist dist\\installer (rmdir /s /q dist\\installer)"
+  },
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "com.mediacleaner.app",
+    "productName": "Media Cleaner",
+    "files": ["dist/**", "electron/**", "metadata.json", "node_modules/**"],
+    "directories": {
+      "output": "dist/installer",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": ["nsis"],
+      "icon": "build/icon.ico"
+    }
   }
 }

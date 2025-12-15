@@ -9,27 +9,134 @@ interface MediaViewerProps {
 
 export const MediaViewer: React.FC<MediaViewerProps> = ({ item, className }) => {
   const [url, setUrl] = useState<string | null>(null);
+  const objectUrlRef = useRef<string | null>(null);
   
   // Zoom & Pan State
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
+  const [videoLoading, setVideoLoading] = useState(false);
+  const [thumbnailUrl, setThumbnailUrl] = useState<string | null>(null);
+  const [showVideo, setShowVideo] = useState(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     // Create object URL for local file preview
     const objectUrl = URL.createObjectURL(item.file);
+    objectUrlRef.current = objectUrl;
     setUrl(objectUrl);
+    if (item.type === 'video') setVideoLoading(true);
+    setThumbnailUrl(null);
+    setShowVideo(false);
+
+    // Generate thumbnail for videos (non-blocking)
+    const generateThumbnail = async (file: File) => {
+      try {
+        const turl = URL.createObjectURL(file);
+        const vid = document.createElement('video');
+        vid.preload = 'metadata';
+        vid.muted = true;
+        vid.playsInline = true;
+        vid.src = turl;
+
+        const cleanup = () => {
+          try { URL.revokeObjectURL(turl); } catch (e) {}
+          vid.remove();
+        };
+
+        const capture = () => {
+          try {
+            const canvas = document.createElement('canvas');
+            const w = vid.videoWidth || 320;
+            const h = vid.videoHeight || 180;
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return null;
+            ctx.drawImage(vid, 0, 0, w, h);
+            return canvas.toDataURL('image/jpeg', 0.8);
+          } catch (err) {
+            return null;
+          }
+        };
+
+        return await new Promise<string | null>((resolve) => {
+          let settled = false;
+          const tryResolve = (data: string | null) => {
+            if (settled) return;
+            settled = true;
+            cleanup();
+            resolve(data);
+          };
+
+          const onLoaded = () => {
+            try {
+              // Seek to 0.5s or start
+              const seekTime = Math.min(0.5, Math.max(0, (vid.duration || 0) / 10));
+              vid.currentTime = seekTime;
+            } catch (e) {
+              // ignore seek errors
+            }
+            // Fallback: if seek doesn't fire, capture after small delay
+            setTimeout(() => {
+              const data = capture();
+              tryResolve(data);
+            }, 800);
+          };
+
+          const onSeeked = () => {
+            const data = capture();
+            tryResolve(data);
+          };
+
+          const onError = () => tryResolve(null);
+
+          vid.addEventListener('loadedmetadata', onLoaded);
+          vid.addEventListener('seeked', onSeeked);
+          vid.addEventListener('error', onError);
+        });
+      } catch (err) {
+        return null;
+      }
+    };
+
+    if (item.type === 'video') {
+      generateThumbnail(item.file).then((data) => {
+        if (data) setThumbnailUrl(data);
+        // keep videoLoading true until user clicks to play; thumbnail ready reduces load
+      });
+    }
     
     // Reset zoom on file change
     setScale(1);
     setPosition({ x: 0, y: 0 });
 
     return () => {
-      URL.revokeObjectURL(objectUrl);
+      if (objectUrlRef.current) {
+        try {
+          URL.revokeObjectURL(objectUrlRef.current);
+        } catch (err) {
+          // ignore
+        }
+        objectUrlRef.current = null;
+      }
     };
   }, [item]);
+
+  // Helper: fallback to data URL using FileReader when blob URLs repeatedly fail.
+  const fallbackToDataUrl = (file: File) => {
+    return new Promise<string | null>((resolve) => {
+      try {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(file);
+      } catch (err) {
+        resolve(null);
+      }
+    });
+  };
 
   // -- ZOOM HANDLERS --
   const handleWheel = (e: React.WheelEvent) => {
@@ -96,6 +203,21 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ item, className }) => 
           <img
             src={url}
             alt={item.path}
+            referrerPolicy="no-referrer"
+            onError={() => {
+              // Retry creating a fresh object URL in case the previous one was revoked or invalid
+              if (objectUrlRef.current) {
+                try { URL.revokeObjectURL(objectUrlRef.current); } catch (e) {}
+              }
+              const fresh = URL.createObjectURL(item.file);
+              objectUrlRef.current = fresh;
+              setUrl(fresh);
+              // If the blob fails quickly again, fallback to data URL
+              setTimeout(async () => {
+                const data = await fallbackToDataUrl(item.file);
+                if (data) setUrl(data);
+              }, 1000);
+            }}
             draggable={false}
             className="max-w-full max-h-full object-contain transition-transform duration-75 ease-out origin-center"
             style={{ 
@@ -105,13 +227,60 @@ export const MediaViewer: React.FC<MediaViewerProps> = ({ item, className }) => 
           />
         </div>
       ) : (
-        <video
-          src={url}
-          controls
-          autoPlay
-          loop
-          className="max-w-full max-h-full object-contain"
-        />
+        <div className="w-full h-full flex items-center justify-center relative">
+          {thumbnailUrl && !showVideo && (
+            <button
+              onClick={() => { setShowVideo(true); setVideoLoading(true); }}
+              className="w-full h-full flex items-center justify-center"
+              title="Play video"
+            >
+              <img src={thumbnailUrl} alt={`${item.path} thumbnail`} draggable={false} className="max-w-full max-h-full object-contain" />
+              <div className="absolute w-14 h-14 bg-black/60 rounded-full flex items-center justify-center">
+                <svg className="w-7 h-7 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z" /></svg>
+              </div>
+            </button>
+          )}
+
+          {!thumbnailUrl && !showVideo && (
+            <div className="absolute inset-0 flex items-center justify-center z-40">
+              <div className="w-12 h-12 border-4 border-white/25 border-t-white rounded-full animate-spin" />
+            </div>
+          )}
+
+          {showVideo && (
+            <video
+              src={url ?? undefined}
+              referrerPolicy="no-referrer"
+              controls
+              autoPlay
+              preload="metadata"
+              controlsList="nodownload noremoteplayback"
+              disableRemotePlayback
+              onLoadedMetadata={() => setVideoLoading(false)}
+              onCanPlay={() => setVideoLoading(false)}
+              onError={() => {
+                console.warn('Video failed to load blob, recreating object URL');
+                if (objectUrlRef.current) {
+                  try { URL.revokeObjectURL(objectUrlRef.current); } catch (e) {}
+                }
+                const fresh = URL.createObjectURL(item.file);
+                objectUrlRef.current = fresh;
+                setUrl(fresh);
+                setVideoLoading(true);
+
+                // If retries don't help, fallback to data URL (slower but reliable)
+                setTimeout(async () => {
+                  const data = await fallbackToDataUrl(item.file);
+                  if (data) {
+                    setUrl(data);
+                    setVideoLoading(false);
+                  }
+                }, 1500);
+              }}
+              className="max-w-full max-h-full object-contain"
+            />
+          )}
+        </div>
       )}
       
       {/* Zoom Controls Overlay (Only for images) */}

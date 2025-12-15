@@ -3,53 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Content-Security-Policy: restrict sources to reduce risk of remote script/style/image injection
+      - default-src 'none' to deny everything by default
+      - allow scripts and styles only from 'self' (we bundle dependencies locally)
+      - block outgoing connections by default (connect-src 'none') to reduce exfil
+    -->
+    <!-- Production CSP (strict). The development server uses a relaxed CSP for HMR; this should be served as a header in production for best enforcement. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob: data:; font-src 'self' data:; connect-src 'self'; object-src 'none'; worker-src 'none'; manifest-src 'self';">
     <title>Media Cleaner</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-      /* Hide scrollbar for clean UI */
-      ::-webkit-scrollbar {
-        width: 0px;
-        background: transparent;
-      }
-      body {
-        background-color: #0f172a; /* Slate 900 */
-        color: #f8fafc;
-        /* Disable text selection for app-like feel */
-        user-select: none;
-        -webkit-user-select: none;
-        cursor: default;
-      }
-      /* Draggable region for future electron implementation or visual cue */
-      .draggable-region {
-        -webkit-app-region: drag; 
-      }
-    </style>
-    <!-- Dynamic PWA Manifest for standalone app experience -->
-    <link rel="manifest" href='data:application/manifest+json,{
-      "name": "Media Cleaner",
-      "short_name": "Cleaner",
-      "start_url": "/",
-      "display": "standalone",
-      "background_color": "#0f172a",
-      "theme_color": "#0f172a",
-      "icons": [
-        {
-          "src": "https://cdn-icons-png.flaticon.com/512/3767/3767084.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    }' />
-  <script type="importmap">
-{
-  "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react/": "https://esm.sh/react@^19.2.3/",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "lucide-react": "https://esm.sh/lucide-react@^0.561.0",
-  }
-}
-</script>
+    <!-- Styles moved to local index.css (uses Tailwind locally). Removed CDN and importmap to reduce supply-chain risk. -->
+    <!-- Dynamic PWA Manifest for standalone app experience (served locally to satisfy CSP) -->
+    <link rel="manifest" href="/metadata.json" />
 <link rel="stylesheet" href="/index.css">
 </head>
   <body>

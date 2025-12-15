@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Preserve previous inline styles from index.html */
+/* Hide scrollbar for clean UI */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+body {
+  background-color: #0f172a; /* Slate 900 */
+  color: #f8fafc;
+  /* Disable text selection for app-like feel */
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+}
+/* Draggable region for future electron implementation or visual cue */
+.draggable-region {
+  -webkit-app-region: drag;
+}

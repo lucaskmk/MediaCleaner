@@ -2,7 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { scanDirectory, formatBytes, copyFileToDirectory, deleteFile } from './services/fs-helpers';
 import { FileItem, SwipeAction } from './types';
 import { MediaViewer } from './components/MediaViewer';
-import { Folder, Trash2, Save, ArrowRight, CheckCircle2, AlertTriangle, AlertCircle, Download, MonitorDown, StopCircle, Play, Search, FolderTree, Copy, X, RotateCcw, Upload, FileJson, RefreshCw, Info } from 'lucide-react';
+import { Folder, Trash2, Save, ArrowRight, CheckCircle2, AlertTriangle, AlertCircle, Download, MonitorDown, StopCircle, Play, Layers, Search, FolderTree, Copy, X, RotateCcw, Upload, FileJson, RefreshCw, Info, Home } from 'lucide-react';
 
 enum AppState {
   IDLE = 'IDLE',
@@ -17,7 +17,8 @@ const WindowFrame: React.FC<{
   children: React.ReactNode; 
   title?: string;
   onSave?: () => void;
-}> = ({ children, title = "Media Cleaner", onSave }) => {
+  onReset?: () => void;
+}> = ({ children, title = "Media Cleaner", onSave, onReset }) => {
   return (
     <div className="fixed inset-0 w-full h-full bg-slate-900 text-slate-200 select-none cursor-default font-sans overflow-hidden flex flex-col">
       {/* Native-like Title Bar */}
@@ -26,6 +27,16 @@ const WindowFrame: React.FC<{
            <span className="text-xs text-slate-400 font-medium tracking-wide opacity-70">{title}</span>
         </div>
         <div className="flex items-center gap-3">
+          {onReset && (
+            <button 
+              onClick={onReset}
+              className="flex items-center gap-1.5 text-[10px] font-bold bg-red-600 hover:bg-red-500 text-white px-2 py-0.5 rounded transition-colors"
+              title="Stop and return to Home Screen"
+            >
+              <Home className="w-3 h-3" />
+              HOME
+            </button>
+          )}
           {onSave && (
             <button 
               onClick={onSave}
@@ -36,6 +47,7 @@ const WindowFrame: React.FC<{
               SAVE PROGRESS
             </button>
           )}
+          
           <div className="text-[10px] text-slate-600 font-mono">v1.8</div>
         </div>
       </div>
@@ -48,7 +60,7 @@ const WindowFrame: React.FC<{
   );
 };
 
-export const App: React.FC = () => {
+const App: React.FC = () => {
   const [appState, setAppState] = useState<AppState>(AppState.IDLE);
   const [sourceHandle, setSourceHandle] = useState<FileSystemDirectoryHandle | null>(null);
   const [destHandle, setDestHandle] = useState<FileSystemDirectoryHandle | null>(null);
@@ -83,6 +95,29 @@ export const App: React.FC = () => {
 
   // Browser Support Check
   const isSupported = typeof window !== 'undefined' && 'showDirectoryPicker' in window;
+
+  const resetToHome = () => {
+    setAppState(AppState.IDLE);
+    setSourceHandle(null);
+    setDestHandle(null);
+    setFileQueue([]);
+    setCurrentIndex(0);
+    setPendingDelete(null);
+    setHistoryStack([]);
+    // Keep ignoredPaths from loaded session if user wants to retry
+    // setIgnoredPaths(new Set()); 
+    // setResumeMode(false);
+    // setResumeFolderName(null);
+    setScannedCount(0);
+    setOriginalTotalBytes(0);
+    setBytesDeleted(0);
+    setFilesDeleted(0);
+    setFilesKept(0);
+    setErrorMsg(null);
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  };
 
   useEffect(() => {
     const handler = (e: any) => {
@@ -187,9 +222,12 @@ export const App: React.FC = () => {
       }
 
       // @ts-ignore
+      // Request READ-only access initially. We will request 'readwrite' only when
+      // the user performs actions that require writes (delete/copy). This reduces
+      // the risk surface and follows least-privilege principles.
       const handle = await window.showDirectoryPicker({
         id: 'source-folder',
-        mode: 'readwrite',
+        mode: 'read',
       });
       
       // Warning if resuming wrong folder
@@ -201,13 +239,13 @@ export const App: React.FC = () => {
         }
       }
       
-      // Permission check
+      // Permission check (READ access is sufficient for scanning/preview)
       // @ts-ignore
-      if ((await handle.queryPermission({ mode: 'readwrite' })) !== 'granted') {
-         // @ts-ignore
-         if ((await handle.requestPermission({ mode: 'readwrite' })) !== 'granted') {
-            throw new Error("Permission denied. We need 'Read & Write' access to delete files.");
-         }
+      if ((await handle.queryPermission({ mode: 'read' })) !== 'granted') {
+        // @ts-ignore
+        if ((await handle.requestPermission({ mode: 'read' })) !== 'granted') {
+          throw new Error("Permission denied. We need 'Read' access to scan files.");
+        }
       }
 
       setSourceHandle(handle);
@@ -243,6 +281,21 @@ export const App: React.FC = () => {
   const stopScanningAndStart = () => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
+    }
+  };
+
+  // Ensure we have write permission on a directory handle (used before delete operations)
+  const ensureWritePermission = async (dirHandle?: FileSystemDirectoryHandle) => {
+    const handle = dirHandle || sourceHandle;
+    if (!handle) return false;
+    try {
+      // @ts-ignore
+      if ((await handle.queryPermission({ mode: 'readwrite' })) === 'granted') return true;
+      // @ts-ignore
+      return (await handle.requestPermission({ mode: 'readwrite' })) === 'granted';
+    } catch (err) {
+      console.warn('Permission API not available or denied', err);
+      return false;
     }
   };
 
@@ -290,9 +343,15 @@ export const App: React.FC = () => {
   const executePendingDelete = async () => {
     if (pendingDelete) {
       try {
-        await deleteFile(pendingDelete.handle);
-        setBytesDeleted(prev => prev + pendingDelete.size);
-        setFilesDeleted(prev => prev + 1);
+        const allowed = await ensureWritePermission();
+        if (!allowed) {
+          setErrorMsg('Write permission required to delete files. Grant permission to proceed.');
+          setTimeout(() => setErrorMsg(null), 4000);
+        } else {
+          await deleteFile(pendingDelete.handle);
+          setBytesDeleted(prev => prev + pendingDelete.size);
+          setFilesDeleted(prev => prev + 1);
+        }
       } catch (err) {
         console.error("Failed to execute pending delete", err);
       }
@@ -338,10 +397,16 @@ export const App: React.FC = () => {
         // If this was the last file, we need to flush the delete we just queued (if any)
         // because we are moving to FINISHED state immediately.
         if (isDeleteAction) {
-           await deleteFile(currentFile.handle);
-           setBytesDeleted(prev => prev + currentFile.size);
-           setFilesDeleted(prev => prev + 1);
-           setPendingDelete(null);
+           const allowed = await ensureWritePermission();
+           if (!allowed) {
+             setErrorMsg('Missing write permission to delete file. Delete skipped.');
+             setTimeout(() => setErrorMsg(null), 4000);
+           } else {
+             await deleteFile(currentFile.handle);
+             setBytesDeleted(prev => prev + currentFile.size);
+             setFilesDeleted(prev => prev + 1);
+             setPendingDelete(null);
+           }
         }
         setAppState(AppState.FINISHED);
       } else {
@@ -685,6 +750,7 @@ export const App: React.FC = () => {
     <WindowFrame 
       title={`Cleaning: ${sourceHandle?.name} (${currentIndex + 1}/${fileQueue.length})`}
       onSave={handleSaveProgress}
+      onReset={resetToHome}
     >
       <div className="flex flex-col h-full bg-slate-900">
         
@@ -761,3 +827,5 @@ export const App: React.FC = () => {
     </WindowFrame>
   );
 };
+
+export default App;
